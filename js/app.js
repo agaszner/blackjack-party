@@ -1,6 +1,7 @@
 import { handTotal } from './engine.js';
 import { Host, loadSavedHost, forgetSavedHost } from './host.js';
 import { hostParty, joinParty, transportName } from './net.js';
+import * as fx from './fx.js';
 
 const $ = (sel) => document.querySelector(sel);
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -18,9 +19,7 @@ const app = {
   view: null,
   me: null,
   pendingBet: 0,
-  seen: new Set(),
-  hiddenIds: new Set(),
-  firstRender: true,
+  dockKey: '',
   turnStartLocal: 0,
   leaving: false,
 };
@@ -258,15 +257,12 @@ function backToLobby() {
 // ---------- rendering ----------
 
 function cardHtml(c) {
-  let cls = '';
-  if (!app.firstRender) {
-    if (!app.seen.has(c.id)) cls = 'deal';
-    else if (app.hiddenIds.has(c.id) && !c.hidden) cls = 'flip';
-  }
-  if (c.hidden) return `<div class="card back ${cls}"></div>`;
+  const id = esc(c.id);
+  if (c.hidden) return `<div class="card down" data-cid="${id}"><div class="inner"><div class="face front"></div><div class="face back"></div></div></div>`;
   const red = c.s === '♥' || c.s === '♦' ? 'red' : '';
-  return `<div class="card ${red} ${cls}" aria-label="${c.r}${c.s}">
-    <div class="corner">${c.r}<i>${c.s}</i></div><div class="pip">${c.s}</div><div class="corner br">${c.r}<i>${c.s}</i></div></div>`;
+  return `<div class="card ${red}" data-cid="${id}" aria-label="${c.r}${c.s}"><div class="inner"><div class="face front">
+    <div class="corner">${c.r}<i>${c.s}</i></div><div class="pip">${c.s}</div><div class="corner br">${c.r}<i>${c.s}</i></div>
+    </div><div class="face back"></div></div></div>`;
 }
 
 function totalLabel(cards) {
@@ -295,6 +291,8 @@ function rulesSummary(st) {
 }
 
 function render(view, me) {
+  const prev = app.view;
+  fx.beforeRender(view, prev);
   app.view = view;
   app.me = me;
   app.turnStartLocal = Date.now() - (view.turnElapsed || 0);
@@ -327,15 +325,18 @@ function render(view, me) {
   for (let i = view.players.length; i < st.maxPlayers; i++) seats.push('<div class="empty-seat">Open seat</div>');
   $('#seats').innerHTML = seats.join('');
 
-  $('#status').textContent = statusText(view, mine);
+  const status = statusText(view, mine);
+  if ($('#status').textContent !== status) {
+    $('#status').textContent = status;
+    fx.bump($('#status'));
+  }
+  $('#dealerZone').classList.toggle('acting', view.phase === 'dealer');
   renderDock(view, mine);
   renderFeeds(view);
   tickTimer();
-
-  for (const c of dCards) app.seen.add(c.id);
-  for (const p of view.players) for (const h of p.hands) for (const c of h.cards) app.seen.add(c.id);
-  app.hiddenIds = new Set(dCards.filter((c) => c.hidden).map((c) => c.id));
-  app.firstRender = false;
+  const landing = fx.afterRender(view, prev, me);
+  $('#dock').style.setProperty('--enter-delay', `${landing}ms`);
+  fx.holdUntil([$('#status'), $('#dock')], landing);
 }
 
 function seatHtml(p, view, me) {
@@ -347,7 +348,9 @@ function seatHtml(p, view, me) {
     const res = h.result && view.phase === 'betting' ? `<span class="result ${h.result}">${RESULT_TEXT[h.result]}</span>` : '';
     const bust = !h.result && h.busted ? '<span class="result bust">Bust</span>' : '';
     const bj = !h.result && h.natural ? '<span class="result blackjack">Blackjack!</span>' : '';
-    return `<div class="hand ${current ? 'current' : ''}">
+    const settled = h.result && view.phase === 'betting';
+    const data = `data-key="${esc(p.id)}-${view.round}-${i}"${settled ? ` data-result="${h.result}" data-net="${h.payout - h.bet}"` : ''}`;
+    return `<div class="hand ${current ? 'current' : ''} ${h.busted ? 'busted' : ''}" ${data}>
       <div class="cards">${h.cards.map(cardHtml).join('')}</div>
       <div class="hand-meta"><span class="total-badge">${totalLabel(h.cards)}</span>
         <span class="bet-chip" style="--chip:${chipColor(h.bet)}">${fmt(h.bet)}</span>${h.doubled ? '<span class="muted">×2</span>' : ''}${res}${bust}${bj}</div>
@@ -356,7 +359,7 @@ function seatHtml(p, view, me) {
 
   let foot = '';
   if (view.phase === 'betting') {
-    if (p.ready && p.bet > 0) foot = `Bet <b>${fmt(p.bet)}</b> ✓`;
+    if (p.ready && p.bet > 0) foot = `<span class="bet-chip" style="--chip:${chipColor(p.bet)}" data-betkey="${view.round}-${esc(p.id)}-${p.bet}">${fmt(p.bet)}</span> Ready ✓`;
     else if (p.ready) foot = 'Sitting out';
     else if (!p.connected) foot = 'Away';
     else foot = p.chips < view.settings.minBet ? 'Out of chips' : 'Choosing a bet…';
@@ -483,6 +486,14 @@ function renderDock(view, mine) {
   }
 
   dock.innerHTML = parts.join('');
+  // Slide the controls in whenever the set of available controls changes.
+  const key = `${view.phase}|${view.round}|${mine?.ready}|${view.turn?.pid === app.me}|${view.turn?.h}|${mine?.insurance}`;
+  if (key !== app.dockKey) {
+    app.dockKey = key;
+    dock.classList.remove('enter');
+    void dock.offsetWidth;
+    dock.classList.add('enter');
+  }
 }
 
 // Mirrors Game.allowed() for the client side, which only has the public view.
@@ -535,8 +546,15 @@ function tickTimer() {
 function onDockClick(e) {
   const chip = e.target.closest('[data-chip]');
   if (chip) {
+    const from = fx.rectCenter(chip);
+    const color = chip.style.getPropertyValue('--chip');
     app.pendingBet += Number(chip.dataset.chip);
     render(app.view, app.me);
+    const target = $('.pending-bet b');
+    if (target) {
+      fx.flyChip(from, fx.rectCenter(target), color);
+      setTimeout(() => fx.bump(target), 550);
+    }
     return;
   }
   const btn = e.target.closest('[data-act]');
@@ -544,8 +562,8 @@ function onDockClick(e) {
   const act = btn.dataset.act;
   switch (act) {
     case 'clear': app.pendingBet = 0; render(app.view, app.me); break;
-    case 'rebet': app.pendingBet = Number(btn.dataset.amount); send('bet', { amount: app.pendingBet }); break;
-    case 'bet': send('bet', { amount: app.pendingBet }); break;
+    case 'rebet': send('bet', { amount: Number(btn.dataset.amount) }); app.pendingBet = 0; break;
+    case 'bet': send('bet', { amount: app.pendingBet }); app.pendingBet = 0; break;
     case 'sitout': send('bet', { amount: 0 }); break;
     case 'insure': send('insurance', { take: true }); break;
     case 'noinsure': send('insurance', { take: false }); break;

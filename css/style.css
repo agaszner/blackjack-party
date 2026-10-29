@@ -150,27 +150,111 @@ input, select, button { font: inherit; color: inherit; }
 }
 .status:empty { visibility: hidden; }
 
-/* cards */
+/* cards: an outer box that moves, an inner box that flips between two faces */
 .cards { display: flex; min-height: var(--card-h); }
 .card {
-  width: var(--card-w); height: var(--card-h); border-radius: 8px; background: #fdfdf8; color: #111;
-  position: relative; box-shadow: 0 3px 8px #0006; flex: none; margin-left: -26px;
-  font-family: Georgia, 'Times New Roman', serif; font-weight: 700;
+  width: var(--card-w); height: var(--card-h); flex: none; margin-left: -26px; position: relative;
+  perspective: 700px; border-radius: 8px; box-shadow: 0 3px 8px #0006;
+  font-family: Georgia, 'Times New Roman', serif; font-weight: 700; color: #111;
+  will-change: transform;
 }
 .cards .card:first-child { margin-left: 0; }
+.card .inner { position: absolute; inset: 0; transform-style: preserve-3d; transition: none; }
+.card.down .inner { transform: rotateY(180deg); }
+.card .face { position: absolute; inset: 0; border-radius: 8px; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.card .front { background: linear-gradient(160deg, #ffffff, #f1efe6); }
+.card .back, .fx-card, .shoe-stack i {
+  background:
+    radial-gradient(circle at 50% 50%, #ffffff22 0 18%, transparent 19%),
+    repeating-linear-gradient(45deg, #a51d30 0 5px, #7a1220 5px 10px);
+  border: 4px solid #fff;
+}
+.card .back { transform: rotateY(180deg); }
 .card.red { color: var(--red); }
 .card .corner { position: absolute; top: 4px; left: 6px; line-height: 0.95; font-size: 1.05rem; text-align: center; }
 .card .corner.br { top: auto; left: auto; bottom: 4px; right: 6px; transform: rotate(180deg); }
 .card .corner i { font-style: normal; display: block; font-size: 0.95rem; }
 .card .pip { position: absolute; inset: 0; display: grid; place-items: center; font-size: 2rem; }
-.card.back {
-  background: repeating-linear-gradient(45deg, #9b1c2c 0 6px, #7a1220 6px 12px);
-  border: 4px solid #fff;
+.hand.busted .card .front { filter: brightness(.72) saturate(.6); }
+
+/* shoe & discard tray on the felt */
+.shoe-stack { position: absolute; top: 22px; right: 26px; width: 46px; height: 64px; transform: rotate(-8deg); }
+.shoe-stack i { position: absolute; inset: 0; border-radius: 6px; box-shadow: 0 2px 4px #0006; }
+.shoe-stack i:nth-child(1) { transform: translate(6px, 6px); }
+.shoe-stack i:nth-child(2) { transform: translate(4px, 4px); }
+.shoe-stack i:nth-child(3) { transform: translate(2px, 2px); }
+.shoe-stack::after {
+  content: ''; position: absolute; inset: -8px -10px -14px -6px; border-radius: 10px; z-index: -1;
+  background: linear-gradient(180deg, #2b1a10, #1a0f08); box-shadow: inset 0 2px 6px #000a;
 }
-.card.deal { animation: deal 0.35s ease-out both; }
-.card.flip { animation: flip 0.45s ease-out both; }
-@keyframes deal { from { transform: translate(40px, -120px) rotate(-12deg); opacity: 0; } to { transform: none; opacity: 1; } }
-@keyframes flip { 0% { transform: rotateY(90deg); } 100% { transform: rotateY(0); } }
+.discard-tray {
+  position: absolute; top: 24px; left: 26px; width: 56px; height: 70px; border-radius: 10px;
+  border: 2px dashed #ffffff30; transform: rotate(8deg);
+}
+.dealer-zone { position: relative; border-radius: 20px; padding: 4px 18px 10px; transition: box-shadow .3s; }
+.dealer-zone.acting { animation: glow 1.4s ease-in-out infinite; }
+@keyframes glow { 50% { box-shadow: 0 0 0 3px #f6d27a44, 0 0 40px #f6d27a33; } }
+
+/* effects layer */
+#fx-layer { position: fixed; inset: 0; pointer-events: none; z-index: 40; overflow: hidden; }
+.ghost-card { position: fixed; margin: 0 !important; z-index: 41; }
+.fx-card { position: fixed; width: 44px; height: 62px; border-radius: 6px; box-shadow: 0 3px 6px #0007; }
+.fx-chip {
+  position: fixed; width: 30px; height: 30px; border-radius: 50%;
+  background: radial-gradient(circle, #fff 0 30%, transparent 31%), var(--chip, #c0392b);
+  border: 3px dashed #ffffffcc; box-shadow: 0 4px 10px #0008;
+}
+.fx-float {
+  position: fixed; font: 800 1.35rem Inter, sans-serif; text-shadow: 0 2px 6px #000c; white-space: nowrap;
+}
+.fx-float.pos { color: var(--win); }
+.fx-float.neg { color: var(--lose); }
+.fx-float.zero { color: var(--push); }
+.fx-label {
+  position: fixed; transform: translateX(-50%); font: 700 0.75rem Inter, sans-serif; letter-spacing: .2em;
+  text-transform: uppercase; color: var(--gold-2); text-shadow: 0 1px 3px #000;
+}
+.fx-banner {
+  position: fixed; left: 50%; top: 42%; transform: translate(-50%, -50%); text-align: center;
+  padding: 18px 44px 16px; border-radius: 22px; background: #07120dee; border: 2px solid var(--gold);
+  box-shadow: 0 30px 80px #000c, 0 0 60px #e3b54a44;
+}
+.fx-banner b {
+  display: block; font: 900 clamp(2.2rem, 8vw, 3.8rem)/1 'Playfair Display', Georgia, serif; white-space: nowrap;
+  background: linear-gradient(180deg, #fff6d5, var(--gold-2) 45%, var(--gold)); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.fx-banner span { display: block; margin-top: 6px; font: 800 1.4rem Inter, sans-serif; color: var(--win); }
+.fx-banner.win { border-color: var(--win); box-shadow: 0 30px 80px #000c, 0 0 60px #4ade8044; }
+.fx-banner.lose { border-color: var(--lose); box-shadow: 0 30px 80px #000c; }
+.fx-banner.lose b { background: linear-gradient(180deg, #fff, #fca5a5); -webkit-background-clip: text; background-clip: text; }
+.fx-banner.lose span { color: var(--lose); }
+.fx-banner.push { border-color: var(--push); }
+.fx-banner.push b { background: linear-gradient(180deg, #fff, #cbd5e1); -webkit-background-clip: text; background-clip: text; }
+.fx-confetti { position: fixed; width: 9px; height: 13px; border-radius: 2px; }
+.fx-spark { position: fixed; width: 8px; height: 8px; border-radius: 50%; background: var(--gold-2); box-shadow: 0 0 10px var(--gold); }
+
+/* controls slide in when they change */
+.dock.enter > * { animation: rise .38s cubic-bezier(.2,.9,.3,1.2) both; animation-delay: calc(var(--enter-delay, 0ms) + var(--i, 0) * 40ms); }
+.dock.enter > *:nth-child(2) { --i: 1; }
+.dock.enter > *:nth-child(3) { --i: 2; }
+.dock.enter > *:nth-child(4) { --i: 3; }
+.dock.enter > *:nth-child(5) { --i: 4; }
+.dock.enter > *:nth-child(6) { --i: 5; }
+.dock.enter > *:nth-child(7) { --i: 6; }
+.dock.enter > *:nth-child(n+8) { --i: 7; }
+@keyframes rise { from { transform: translateY(24px) scale(.9); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* seat glow while it's someone's turn */
+.seat.active { animation: seatPulse 1.6s ease-in-out infinite; }
+@keyframes seatPulse {
+  0%, 100% { box-shadow: 0 0 0 4px #e3b54a33, 0 0 24px #e3b54a33; }
+  50% { box-shadow: 0 0 0 6px #e3b54a55, 0 0 44px #e3b54a66; }
+}
+.seat-foot .bet-chip { min-width: 30px; height: 30px; vertical-align: middle; margin-right: 4px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .dock.enter > *, .seat.active, .dealer-zone.acting { animation: none !important; }
+}
 
 .total-badge {
   background: #000000a0; border: 1px solid var(--line); padding: 2px 10px; border-radius: 999px; font-weight: 700; font-size: 0.9rem;
@@ -196,8 +280,8 @@ input, select, button { font: inherit; color: inherit; }
 .hand-meta { display: flex; gap: 6px; align-items: center; font-size: 0.8rem; }
 .bet-chip {
   display: inline-grid; place-items: center; min-width: 34px; height: 34px; padding: 0 6px; border-radius: 999px;
-  background: radial-gradient(circle, #fff 0 38%, transparent 39%), var(--chip, #c0392b);
-  border: 3px dashed #ffffffcc; color: #111; font-weight: 800; font-size: 0.7rem;
+  background: radial-gradient(circle, #fff 0 46%, transparent 47%), var(--chip, #c0392b);
+  border: 3px dashed #ffffffcc; color: #111; font-weight: 800; font-size: 0.66rem; letter-spacing: -0.02em;
 }
 .result { font-weight: 800; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; padding: 2px 8px; border-radius: 999px; background: #0008; }
 .result.win, .result.blackjack { color: var(--win); }
@@ -264,6 +348,8 @@ input, select, button { font: inherit; color: inherit; }
 }
 @media (max-width: 600px) {
   :root { --card-w: 50px; --card-h: 72px; }
+  .shoe-stack { top: 14px; right: 14px; transform: rotate(-8deg) scale(.8); }
+  .discard-tray { top: 14px; left: 14px; transform: rotate(8deg) scale(.8); }
   .card { margin-left: -22px; }
   .card .pip { font-size: 1.5rem; }
   .card .corner { font-size: 0.9rem; }
