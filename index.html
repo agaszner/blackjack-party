@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Blackjack Party</title>
+  <meta name="description" content="Play blackjack online with your friends. Create a party, share the code, and take on the dealer.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🂡</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js" defer></script>
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <!-- ============ HOME ============ -->
+  <main id="home" class="screen">
+    <header class="brand">
+      <div class="brand-cards" aria-hidden="true"><span class="mini-card">A<i>♠</i></span><span class="mini-card red">K<i>♥</i></span></div>
+      <h1>Blackjack Party</h1>
+      <p class="tagline">Gather your friends. Beat the dealer. Pays 3 to 2.</p>
+    </header>
+
+    <section class="panel">
+      <label class="field">
+        <span>Your name</span>
+        <input id="name" maxlength="20" autocomplete="nickname" placeholder="e.g. Lucky Lou">
+      </label>
+
+      <div class="home-actions">
+        <div class="home-col">
+          <h2>Join a party</h2>
+          <form id="joinForm" class="join-row">
+            <input id="joinCode" maxlength="6" placeholder="CODE" autocomplete="off" spellcheck="false" aria-label="Party code">
+            <button class="btn primary" type="submit">Join</button>
+          </form>
+        </div>
+        <div class="divider"><span>or</span></div>
+        <div class="home-col">
+          <h2>Host a party</h2>
+          <button id="showCreate" class="btn gold" type="button">Create party</button>
+        </div>
+      </div>
+      <p id="homeError" class="error" role="alert" hidden></p>
+    </section>
+
+    <form id="createForm" class="panel" hidden>
+      <h2>Table settings</h2>
+      <p class="muted">Defaults follow the classic Las Vegas rules. Change whatever you like.</p>
+      <div class="grid">
+        <label class="field"><span>Starting chips</span><input type="number" name="startingChips" min="10" step="10" value="1000"></label>
+        <label class="field"><span>Decks in the shoe</span>
+          <select name="decks"><option>1</option><option>2</option><option>4</option><option selected>6</option><option>8</option></select></label>
+        <label class="field"><span>Minimum bet</span><input type="number" name="minBet" min="1" value="10"></label>
+        <label class="field"><span>Maximum bet</span><input type="number" name="maxBet" min="1" value="500"></label>
+        <label class="field"><span>Max players</span>
+          <select name="maxPlayers"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option selected>7</option></select></label>
+        <label class="field"><span>Turn timer</span>
+          <select name="turnSeconds"><option value="0">Off</option><option value="15">15 s</option><option value="30" selected>30 s</option><option value="60">60 s</option><option value="120">2 min</option></select></label>
+        <label class="field"><span>Blackjack pays</span>
+          <select name="blackjackPays"><option value="3:2" selected>3 to 2 (classic)</option><option value="6:5">6 to 5</option></select></label>
+        <label class="field"><span>Reshuffle after <b id="penOut">75%</b> of the shoe</span>
+          <input type="range" name="penetration" min="0.5" max="0.9" step="0.05" value="0.75"></label>
+      </div>
+      <div class="toggles">
+        <label class="toggle"><input type="checkbox" name="dealerHitsSoft17"><span>Dealer hits soft 17</span></label>
+        <label class="toggle"><input type="checkbox" name="doubleAfterSplit" checked><span>Double after split</span></label>
+        <label class="toggle"><input type="checkbox" name="insurance" checked><span>Insurance (pays 2 to 1)</span></label>
+        <label class="toggle"><input type="checkbox" name="surrender"><span>Late surrender</span></label>
+        <label class="toggle"><input type="checkbox" name="hitSplitAces"><span>Hit split aces</span></label>
+        <label class="toggle"><input type="checkbox" name="resplitAces"><span>Re-split aces</span></label>
+        <label class="toggle"><input type="checkbox" name="allowRebuy" checked><span>Allow rebuys when broke</span></label>
+      </div>
+      <fieldset class="role">
+        <legend>Your role</legend>
+        <label class="radio"><input type="radio" name="hostPlays" value="yes" checked><span><b>Play at the table</b><small>You run the party and play hands like everyone else.</small></span></label>
+        <label class="radio"><input type="radio" name="hostPlays" value="no"><span><b>Be the dealer</b><small>You run the table; the house plays by the rules, you just deal and keep the game moving.</small></span></label>
+      </fieldset>
+      <div class="form-foot">
+        <button type="button" id="cancelCreate" class="btn ghost">Cancel</button>
+        <button type="submit" class="btn gold">Open the table</button>
+      </div>
+    </form>
+
+    <footer class="foot muted">Peer-to-peer: the host's browser runs the table, so keep that tab open. Play money only.</footer>
+  </main>
+
+  <!-- ============ TABLE ============ -->
+  <main id="table" class="screen" hidden>
+    <header class="topbar">
+      <div class="party">
+        <span class="label">Party</span>
+        <b id="partyCode">-----</b>
+        <button id="copyLink" class="btn small">Copy invite link</button>
+      </div>
+      <div id="rulesSummary" class="rules muted"></div>
+      <div class="top-right">
+        <div class="shoe" title="Cards left in the shoe">
+          <span class="label">Shoe</span>
+          <div class="shoe-bar"><div id="shoeFill"></div><div id="shoeCut"></div></div>
+          <span id="shoeText"></span>
+        </div>
+        <button id="leaveBtn" class="btn small ghost">Leave</button>
+      </div>
+    </header>
+
+    <div class="layout">
+      <section class="felt">
+        <div class="dealer-zone">
+          <div class="zone-label">Dealer <span id="dealerName"></span></div>
+          <div id="dealerCards" class="cards"></div>
+          <div id="dealerTotal" class="total-badge" hidden></div>
+        </div>
+        <div class="felt-print" id="feltPrint"></div>
+        <div id="status" class="status"></div>
+        <div id="seats" class="seats"></div>
+      </section>
+
+      <aside class="side">
+        <div class="tabs" role="tablist">
+          <button class="tab active" data-tab="chat" role="tab">Chat</button>
+          <button class="tab" data-tab="log" role="tab">Table log</button>
+          <button class="tab" data-tab="board" role="tab">Standings</button>
+        </div>
+        <div class="tab-body" id="tab-chat">
+          <ul id="chatList" class="feed"></ul>
+          <form id="chatForm" class="chat-form">
+            <input id="chatInput" maxlength="200" placeholder="Say something…" autocomplete="off">
+            <button class="btn small primary">Send</button>
+          </form>
+        </div>
+        <div class="tab-body" id="tab-log" hidden><ul id="logList" class="feed"></ul></div>
+        <div class="tab-body" id="tab-board" hidden><ol id="board" class="board"></ol></div>
+      </aside>
+    </div>
+
+    <div id="dock" class="dock"></div>
+  </main>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+  <div id="overlay" class="overlay" hidden><div class="overlay-card"><div class="spinner"></div><p id="overlayText">Connecting…</p><button id="overlayBtn" class="btn" hidden>Back to lobby</button></div></div>
+</body>
+</html>

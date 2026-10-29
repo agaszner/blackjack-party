@@ -1,0 +1,11 @@
+{
+  "name": "blackjack-party",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Multiplayer blackjack you can play with friends in the browser.",
+  "scripts": {
+    "test": "node --test test/engine.test.mjs",
+    "start": "npx --yes serve -l 8080 ."
+  }
+}
